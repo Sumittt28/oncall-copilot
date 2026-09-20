@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, DashboardResponse } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+
 import { AlertCircle, CheckCircle, Clock, Activity } from "lucide-react";
 import {
   BarChart,

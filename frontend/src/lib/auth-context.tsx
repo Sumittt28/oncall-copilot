@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { api, User } from "./api";
 
 interface AuthContextType {
@@ -18,6 +18,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const initialized = useRef(false);
 
   const refreshUser = useCallback(async () => {
     if (!api.getToken()) {
@@ -38,7 +39,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    refreshUser();
+    if (!initialized.current) {
+      initialized.current = true;
+      void refreshUser();
+    }
   }, [refreshUser]);
 
   const login = async (email: string, password: string) => {
