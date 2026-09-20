@@ -4,10 +4,12 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+from app.services.embeddings import EMBEDDING_DIMENSION
 
 if TYPE_CHECKING:
     from app.models.incident import Incident
@@ -98,7 +100,10 @@ class DocumentChunk(Base):
     chunk_index: Mapped[int] = mapped_column(nullable=False)  # Order within document
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(nullable=False)  # Approximate token count
-    # embedding column will be added in Phase 3 with pgvector
+    embedding = mapped_column(Vector(EMBEDDING_DIMENSION), nullable=True)  # pgvector
+    embedded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -112,6 +117,11 @@ class DocumentChunk(Base):
     __table_args__ = (
         Index("ix_document_chunks_document_id", "document_id"),
     )
+
+    @property
+    def has_embedding(self) -> bool:
+        """Check if this chunk has been embedded."""
+        return self.embedding is not None
 
     def __repr__(self) -> str:
         return f"<DocumentChunk(id={self.id}, document_id={self.document_id}, index={self.chunk_index})>"

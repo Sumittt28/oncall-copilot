@@ -25,6 +25,7 @@ from app.schemas.document import (
     DocumentWithChunksResponse,
 )
 from app.services.chunking import chunk_text
+from app.workers.embedding_worker import embed_document_chunks
 
 router = APIRouter()
 settings = get_settings()
@@ -297,6 +298,36 @@ async def attach_to_incident(
     await db.refresh(document)
 
     return DocumentResponse.from_orm_with_chunks(document)
+
+
+@router.post("/{document_id}/embed")
+async def embed_document(
+    document_id: int,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict[str, str | int]:
+    """Generate embeddings for a document's chunks.
+
+    This triggers embedding generation for all unembedded chunks in the document.
+    Useful for manually triggering embeddings or re-embedding after updates.
+    """
+    result = await db.execute(select(Document).where(Document.id == document_id))
+    document = result.scalar_one_or_none()
+
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    # Trigger embedding
+    embedded_count = await embed_document_chunks(document_id)
+
+    return {
+        "message": f"Embedded {embedded_count} chunks",
+        "document_id": document_id,
+        "chunks_embedded": embedded_count,
+    }
 
 
 @router.delete("/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
