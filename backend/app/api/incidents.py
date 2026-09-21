@@ -1,7 +1,6 @@
 """Incident management routes."""
 
 from datetime import UTC, datetime
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import func, select
@@ -24,16 +23,6 @@ from app.schemas.incident import (
 )
 
 router = APIRouter()
-
-
-def get_enum_value(val: Any) -> str:
-    """Get the value from an enum or return string as-is.
-
-    SQLite stores enums as strings, PostgreSQL as enum values.
-    """
-    if hasattr(val, "value"):
-        return str(val.value)
-    return str(val)
 
 
 @router.post(

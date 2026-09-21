@@ -425,3 +425,69 @@ if __name__ == "__main__":
         data={"title": "Python Script", "document_type": "doc"},
     )
     assert response.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_embed_document_not_found(client: AsyncClient, auth_headers) -> None:
+    """Test embedding non-existent document."""
+    response = await client.post("/api/v1/documents/99999/embed", headers=auth_headers)
+    assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_list_documents_pagination(client: AsyncClient, auth_headers) -> None:
+    """Test document listing with pagination."""
+    # Upload multiple documents
+    for i in range(5):
+        file = io.BytesIO(f"Document {i}".encode())
+        await client.post(
+            "/api/v1/documents",
+            headers=auth_headers,
+            files={"file": (f"doc{i}.txt", file, "text/plain")},
+            data={"title": f"Doc {i}", "document_type": "doc"},
+        )
+
+    # Get first page
+    response = await client.get(
+        "/api/v1/documents?limit=2&offset=0",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+    assert data["total"] == 5
+
+    # Get second page
+    response = await client.get(
+        "/api/v1/documents?limit=2&offset=2",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_upload_document_missing_title(client: AsyncClient, auth_headers) -> None:
+    """Test uploading document without title."""
+    file = io.BytesIO(b"Content")
+    response = await client.post(
+        "/api/v1/documents",
+        headers=auth_headers,
+        files={"file": ("test.txt", file, "text/plain")},
+        data={"document_type": "doc"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_upload_document_invalid_type(client: AsyncClient, auth_headers) -> None:
+    """Test uploading document with invalid document_type."""
+    file = io.BytesIO(b"Content")
+    response = await client.post(
+        "/api/v1/documents",
+        headers=auth_headers,
+        files={"file": ("test.txt", file, "text/plain")},
+        data={"title": "Test", "document_type": "invalid"},
+    )
+    assert response.status_code == 422
