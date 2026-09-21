@@ -33,9 +33,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60 * 24  # 24 hours
 
-    # Ollama (Phase 4+)
+    # Ollama - AI Investigation (Phase 4+)
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1:8b"
+    ollama_model: str = "llama3.2:latest"
 
     # CORS
     cors_origins: list[str] = ["http://localhost:3000"]
