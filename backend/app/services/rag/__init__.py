@@ -18,6 +18,10 @@ from app.services.rag.retrieval import (
     RetrievalContext,
     retrieve_evidence,
 )
+from app.services.rag.storage import (
+    save_investigation,
+    validate_citations,
+)
 
 __all__ = [
     "Evidence",
@@ -32,4 +36,6 @@ __all__ = [
     "investigate_incident",
     "investigate_incident_stream",
     "retrieve_evidence",
+    "save_investigation",
+    "validate_citations",
 ]

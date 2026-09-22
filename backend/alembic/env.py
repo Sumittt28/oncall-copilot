@@ -12,7 +12,15 @@ from app.core.config import get_settings
 from app.core.database import Base
 
 # Import all models to register them with Base.metadata
-from app.models import Document, DocumentChunk, Incident, IncidentEvent, User  # noqa: F401
+from app.models import (  # noqa: F401
+    AIInvestigation,
+    Document,
+    DocumentChunk,
+    Incident,
+    IncidentEvent,
+    IncidentEvidence,
+    User,
+)
 
 # Alembic Config object
 config = context.config

@@ -11,6 +11,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.document import Document
+    from app.models.investigation import AIInvestigation
     from app.models.user import User
 
 
@@ -98,6 +99,12 @@ class Incident(Base):
         "Document",
         back_populates="incident",
         lazy="selectin",
+    )
+    investigations: Mapped[list["AIInvestigation"]] = relationship(
+        "AIInvestigation",
+        back_populates="incident",
+        lazy="selectin",
+        order_by="AIInvestigation.created_at.desc()",
     )
 
     def __repr__(self) -> str:
