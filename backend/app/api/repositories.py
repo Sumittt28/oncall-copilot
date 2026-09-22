@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 
 from app.core.deps import CurrentUser, DbSession
+from app.core.encryption import decrypt_token, encrypt_token
 from app.models.incident import Incident
 from app.models.repository import Repository
 from app.services.github.client import (
@@ -171,7 +172,7 @@ async def connect_repository(
         github_full_name=data.github_full_name,
         github_url=github_url,
         default_branch=default_branch,
-        access_token=data.access_token,  # TODO: Encrypt in production
+        access_token=encrypt_token(data.access_token),
         owner_id=current_user.id,
     )
     db.add(repository)
@@ -316,7 +317,7 @@ async def list_commits(
     owner, repo = parts
 
     try:
-        async with GitHubClient(repository.access_token) as client:
+        async with GitHubClient(decrypt_token(repository.access_token)) as client:
             commits = await client.list_commits(
                 owner=owner,
                 repo=repo,

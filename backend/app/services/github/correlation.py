@@ -4,6 +4,7 @@ import logging
 from dataclasses import dataclass
 from datetime import timedelta
 
+from app.core.encryption import decrypt_token
 from app.models.incident import Incident
 from app.models.repository import Repository
 from app.services.github.client import GitHubClient, GitHubCommit, GitHubError
@@ -78,7 +79,7 @@ async def correlate_commits_with_incident(
     owner, repo = parts
 
     try:
-        async with GitHubClient(repository.access_token) as client:
+        async with GitHubClient(decrypt_token(repository.access_token)) as client:
             # Fetch commits in the time window
             commits = await client.list_commits(
                 owner=owner,
