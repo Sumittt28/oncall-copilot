@@ -1,133 +1,207 @@
-# Architecture
+# Architecture Overview
 
-## System Overview
+## System Architecture
 
 ```
-┌─────────────────┐     REST/SSE      ┌─────────────────┐
-│    Next.js      │◄──────────────────►│    FastAPI      │
-│  React + Tailwind│                    │    Backend      │
-└─────────────────┘                    └────────┬────────┘
-                                                │
-                    ┌───────────────────────────┼───────────────────────────┐
-                    │                           │                           │
-                    ▼                           ▼                           ▼
-          ┌─────────────────┐         ┌─────────────────┐         ┌─────────────────┐
-          │   PostgreSQL    │         │      Redis      │         │     Ollama      │
-          │   + pgvector    │         │   Task Queue    │         │   Local LLM     │
-          └─────────────────┘         └────────┬────────┘         └─────────────────┘
-                                               │
-                                               ▼
-                                      ┌─────────────────┐
-                                      │ Background      │
-                                      │ Worker          │
-                                      │ (embeddings)    │
-                                      └─────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                              Client                                   │
+│                         (Next.js Frontend)                           │
+└─────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ REST API / SSE
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                           FastAPI Backend                            │
+│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐   │
+│  │   Auth   │ │ Incidents│ │ Documents│ │   RAG    │ │Analytics │   │
+│  │   API    │ │   API    │ │   API    │ │   API    │ │   API    │   │
+│  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────┘   │
+│                                                                       │
+│  ┌───────────────────────────────────────────────────────────────┐   │
+│  │                      Service Layer                             │   │
+│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐  │   │
+│  │  │Embedding│ │ Search  │ │ Ollama  │ │ GitHub  │ │Postmort.│  │   │
+│  │  │ Service │ │ Service │ │ Client  │ │ Client  │ │Generator│  │   │
+│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────────┘  │   │
+│  └───────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+        │              │              │              │
+        ▼              ▼              ▼              ▼
+┌──────────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐
+│  PostgreSQL  │ │  Redis   │ │    Ollama    │ │   GitHub     │
+│  + pgvector  │ │  Queue   │ │  Local LLM   │ │     API      │
+└──────────────┘ └──────────┘ └──────────────┘ └──────────────┘
 ```
 
-## Data Flow
-
-### Incident Investigation
-
-1. User clicks "Investigate with AI" on an incident
-2. Backend embeds the incident title + description using sentence-transformers
-3. pgvector cosine similarity search retrieves top-k relevant chunks from:
-   - Past incidents
-   - Runbooks
-   - Documentation
-4. If a GitHub repo is connected, fetch recent commits/PRs within the time window
-5. Merge and deduplicate evidence, assign stable `evidence_id` to each
-6. Construct prompt with incident context + labeled evidence
-7. Stream response from Ollama via SSE to frontend
-8. Validate structured JSON output against Pydantic schema
-9. Store investigation in `ai_investigations` table
-10. Frontend renders claims with clickable citations
-
-### Document Ingestion
-
-1. User uploads a runbook/log/doc
-2. Backend chunks the document (300-500 tokens with overlap)
-3. Task queued to Redis for async processing
-4. Background worker embeds each chunk with sentence-transformers
-5. Chunks + embeddings stored in `document_chunks` with pgvector
-
-## Database Schema
+## Data Models
 
 ### Core Tables
 
 | Table | Purpose |
 |-------|---------|
-| `users` | Authentication, user profiles |
-| `incidents` | Incident records with status, severity, ownership |
-| `incident_events` | Timeline of incident activity |
-| `documents` | Metadata for uploaded runbooks/logs/docs |
-| `document_chunks` | Chunked text + vector embeddings |
-| `incident_evidence` | Links incidents to relevant evidence chunks |
+| `users` | Authentication and user profiles |
+| `incidents` | Incident records with status/severity |
+| `incident_events` | Timeline of incident activities |
+| `documents` | Uploaded runbooks, logs, docs |
+| `document_chunks` | Chunked document content with embeddings |
 | `repositories` | Connected GitHub repositories |
-| `ai_investigations` | Stored AI analysis with structured output |
+| `ai_investigations` | Stored AI investigation results |
+| `incident_evidence` | Cited evidence from investigations |
+| `postmortems` | Generated postmortem documents |
 
-### Key Relationships
+### Entity Relationships
 
-- `incidents.owner_id` → `users.id`
-- `incident_events.incident_id` → `incidents.id`
-- `document_chunks.document_id` → `documents.id`
-- `incident_evidence.incident_id` → `incidents.id`
-- `ai_investigations.incident_id` → `incidents.id`
+```
+User (1) ──────────< (N) Incident
+                          │
+                          ├──< IncidentEvent
+                          ├──< Document ──< DocumentChunk
+                          ├──< AIInvestigation ──< IncidentEvidence
+                          ├──< Postmortem
+                          └──< Repository (optional)
+```
 
-## API Design
+## RAG Pipeline
 
-- Base path: `/api/v1/*`
-- Authentication: JWT Bearer tokens
-- Streaming: SSE at `/api/v1/incidents/{id}/investigate/stream`
+### 1. Ingestion
 
-### Key Endpoints
+```
+Document Upload
+      │
+      ▼
+┌─────────────┐
+│   Chunking  │  Split into 300-500 token chunks with overlap
+└─────────────┘
+      │
+      ▼
+┌─────────────┐
+│  Embedding  │  all-MiniLM-L6-v2 (384 dimensions)
+└─────────────┘
+      │
+      ▼
+┌─────────────┐
+│   Storage   │  PostgreSQL + pgvector
+└─────────────┘
+```
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/auth/signup` | User registration |
-| POST | `/auth/login` | JWT token exchange |
-| GET | `/incidents` | List incidents |
-| POST | `/incidents` | Create incident |
-| GET | `/incidents/{id}` | Get incident details |
-| PATCH | `/incidents/{id}` | Update incident |
-| POST | `/incidents/{id}/investigate` | Trigger AI investigation |
-| GET | `/incidents/{id}/investigate/stream` | SSE stream of investigation |
-| POST | `/documents` | Upload document |
-| GET | `/search` | Semantic search |
-| POST | `/incidents/{id}/postmortem` | Generate postmortem |
+### 2. Retrieval
 
-## AI/RAG Pipeline
+```
+Investigation Request
+        │
+        ▼
+┌───────────────────────────────────────────────────────────────┐
+│                    Evidence Retrieval                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐            │
+│  │  Attached   │  │  Semantic   │  │   Similar   │            │
+│  │  Documents  │  │   Search    │  │  Incidents  │            │
+│  └─────────────┘  └─────────────┘  └─────────────┘            │
+│                           │                                    │
+│                  ┌────────┴────────┐                          │
+│                  ▼                 ▼                          │
+│           ┌─────────────┐  ┌─────────────┐                    │
+│           │   GitHub    │  │   Commit    │                    │
+│           │   Commits   │  │ Correlation │                    │
+│           └─────────────┘  └─────────────┘                    │
+└───────────────────────────────────────────────────────────────┘
+        │
+        ▼
+┌───────────────┐
+│ Merge & Rank  │  Sort by relevance, deduplicate
+└───────────────┘
+```
 
-### Embedding Model
-- `all-MiniLM-L6-v2` via sentence-transformers
-- 384-dimensional vectors
-- Runs locally, no API calls
+### 3. Generation
 
-### LLM
-- Ollama with `llama3.1:8b`
-- Runs locally on Apple Silicon
-- ~8GB memory footprint
-
-### Structured Output Schema
-
-```json
-{
-  "summary": "string",
-  "severity_estimate": "SEV-1 | SEV-2 | SEV-3 | SEV-4",
-  "possible_causes": [
-    {"cause": "string", "confidence": 0.0, "evidence_ids": ["string"]}
-  ],
-  "recommended_actions": ["string"],
-  "insufficient_evidence": false
-}
+```
+Evidence + Incident
+        │
+        ▼
+┌───────────────┐
+│    Prompt     │  System prompt + incident + evidence
+│ Construction  │  with explicit citation instructions
+└───────────────┘
+        │
+        ▼
+┌───────────────┐
+│    Ollama     │  Local LLM (llama3.2:latest)
+│   Inference   │  Temperature: 0.3 (factual)
+└───────────────┘
+        │
+        ▼
+┌───────────────┐
+│    Schema     │  Pydantic validation
+│  Validation   │  Retry on failure
+└───────────────┘
+        │
+        ▼
+┌───────────────┐
+│   Citation    │  Verify all claims have citations
+│  Validation   │
+└───────────────┘
 ```
 
 ## Security
 
-- Passwords hashed with bcrypt (passlib)
-- JWT tokens with expiration
-- All incident endpoints require authentication
-- Input validation via Pydantic
+### Authentication
+- JWT-based authentication
+- Tokens expire after 24 hours
+- Password hashing with bcrypt
 
-## Deviations from Original Plan
+### Authorization
+- User-scoped data access
+- Repository tokens encrypted (TODO: implement encryption)
 
-*None yet — this document will be updated as the project evolves.*
+### API Security
+- CORS configuration
+- Input validation with Pydantic
+- Rate limiting (TODO: implement)
+
+## Performance Considerations
+
+### Database
+- pgvector indexes for fast similarity search
+- Connection pooling with asyncpg
+- Eager loading to avoid N+1 queries
+
+### Caching (TODO)
+- Redis for session data
+- Document embedding cache
+- Search result cache
+
+### Async Processing
+- Background embedding generation
+- Async database operations
+- SSE for streaming AI responses
+
+## Scalability
+
+### Horizontal Scaling
+- Stateless backend (easy to scale)
+- External session storage (Redis)
+- Database connection pooling
+
+### Vertical Scaling
+- Ollama model size based on RAM
+- Embedding batch processing
+- Chunk size tuning
+
+## Monitoring (TODO)
+
+- Health check endpoints
+- Prometheus metrics
+- Structured logging
+- Error tracking (Sentry)
+
+## Deployment
+
+### Development
+- Local Python venv
+- Docker Compose for services
+- Hot reload with uvicorn
+
+### Production
+- Docker containers
+- Docker Compose orchestration
+- Environment-based configuration
+- Nginx reverse proxy (optional)

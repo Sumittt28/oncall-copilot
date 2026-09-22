@@ -12,6 +12,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.investigation import AIInvestigation
+    from app.models.postmortem import Postmortem
     from app.models.repository import Repository
     from app.models.user import User
 
@@ -113,6 +114,12 @@ class Incident(Base):
     repository: Mapped["Repository | None"] = relationship(
         "Repository",
         back_populates="incidents",
+        lazy="selectin",
+    )
+    postmortem: Mapped["Postmortem | None"] = relationship(
+        "Postmortem",
+        back_populates="incident",
+        uselist=False,
         lazy="selectin",
     )
 

@@ -2,7 +2,17 @@
 
 from fastapi import APIRouter
 
-from app.api import auth, dashboard, documents, incidents, investigation, repositories, search
+from app.api import (
+    analytics,
+    auth,
+    dashboard,
+    documents,
+    incidents,
+    investigation,
+    postmortem,
+    repositories,
+    search,
+)
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -13,3 +23,5 @@ api_router.include_router(documents.router, prefix="/documents", tags=["Document
 api_router.include_router(search.router, prefix="/search", tags=["Search"])
 api_router.include_router(investigation.router, tags=["Investigation"])
 api_router.include_router(repositories.router, tags=["Repositories"])
+api_router.include_router(postmortem.router, tags=["Postmortem"])
+api_router.include_router(analytics.router, tags=["Analytics"])

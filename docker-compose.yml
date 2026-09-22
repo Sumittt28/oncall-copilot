@@ -1,6 +1,7 @@
 version: "3.8"
 
 services:
+  # PostgreSQL with pgvector extension
   postgres:
     image: pgvector/pgvector:pg16
     container_name: oncall-copilot-db
@@ -17,7 +18,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - oncall-network
 
+  # Redis for task queue and caching
   redis:
     image: redis:7-alpine
     container_name: oncall-copilot-redis
@@ -30,7 +34,54 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - oncall-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: oncall-copilot-backend
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/oncall_copilot
+      - REDIS_URL=redis://redis:6379/0
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-in-production}
+      - CORS_ORIGINS=["http://localhost:3000"]
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend/uploads:/app/uploads
+    networks:
+      - oncall-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: oncall-copilot-frontend
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - oncall-network
 
 volumes:
   postgres_data:
   redis_data:
+
+networks:
+  oncall-network:
+    driver: bridge

@@ -19,6 +19,7 @@ from app.models import (  # noqa: F401
     Incident,
     IncidentEvent,
     IncidentEvidence,
+    Postmortem,
     Repository,
     User,
 )

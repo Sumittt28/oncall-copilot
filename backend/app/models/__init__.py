@@ -3,6 +3,7 @@
 from app.models.document import Document, DocumentChunk
 from app.models.incident import Incident, IncidentEvent
 from app.models.investigation import AIInvestigation, IncidentEvidence
+from app.models.postmortem import Postmortem
 from app.models.repository import Repository
 from app.models.user import User
 
@@ -13,6 +14,7 @@ __all__ = [
     "Incident",
     "IncidentEvent",
     "IncidentEvidence",
+    "Postmortem",
     "Repository",
     "User",
 ]
