@@ -12,6 +12,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.document import Document
     from app.models.investigation import AIInvestigation
+    from app.models.repository import Repository
     from app.models.user import User
 
 
@@ -78,6 +79,9 @@ class Incident(Base):
         String(20), default=IncidentStatus.OPEN, nullable=False
     )
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    repository_id: Mapped[int | None] = mapped_column(
+        ForeignKey("repositories.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(UTC),
@@ -105,6 +109,11 @@ class Incident(Base):
         back_populates="incident",
         lazy="selectin",
         order_by="AIInvestigation.created_at.desc()",
+    )
+    repository: Mapped["Repository | None"] = relationship(
+        "Repository",
+        back_populates="incidents",
+        lazy="selectin",
     )
 
     def __repr__(self) -> str:

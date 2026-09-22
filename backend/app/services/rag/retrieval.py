@@ -9,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.document import Document, DocumentChunk
 from app.models.incident import Incident
+from app.models.repository import Repository
 from app.services.embeddings import generate_embedding
+from app.services.github.correlation import correlate_commits_with_incident
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +141,13 @@ async def retrieve_evidence(
                     },
                 )
             )
+
+    # 4. Get correlated commits from GitHub (if repository is connected)
+    if incident.repository_id:
+        commit_evidence = await _get_correlated_commits(
+            db, incident, evidence_ids_seen
+        )
+        evidence_list.extend(commit_evidence)
 
     # Sort by similarity and limit
     evidence_list.sort(key=lambda e: e.similarity or 0, reverse=True)
@@ -290,3 +299,69 @@ async def _find_similar_incidents(
     # Sort by similarity and return top_k
     scored_incidents.sort(key=lambda x: x[1], reverse=True)
     return scored_incidents[:top_k]
+
+
+async def _get_correlated_commits(
+    db: AsyncSession,
+    incident: Incident,
+    evidence_ids_seen: set[str],
+) -> list[Evidence]:
+    """Get correlated commits from GitHub repository.
+
+    Args:
+        db: Database session.
+        incident: The incident to correlate.
+        evidence_ids_seen: Set of evidence IDs already seen.
+
+    Returns:
+        List of commit evidence items.
+    """
+    evidence_list: list[Evidence] = []
+
+    if not incident.repository_id:
+        return evidence_list
+
+    # Get repository
+    result = await db.execute(
+        select(Repository).where(Repository.id == incident.repository_id)
+    )
+    repository = result.scalar_one_or_none()
+
+    if repository is None:
+        return evidence_list
+
+    try:
+        correlations = await correlate_commits_with_incident(
+            repository=repository,
+            incident=incident,
+            window_minutes=60,  # Default correlation window
+        )
+
+        for corr in correlations:
+            eid = corr.evidence_id
+            if eid in evidence_ids_seen:
+                continue
+
+            evidence_ids_seen.add(eid)
+            evidence_list.append(
+                Evidence(
+                    evidence_id=eid,
+                    source_type="commit",
+                    source_id=0,  # Commits don't have numeric IDs
+                    source_title=f"Commit {corr.commit.short_sha}: {corr.commit.first_line[:50]}",
+                    content=corr.evidence_content,
+                    similarity=corr.relevance_score,
+                    metadata={
+                        "sha": corr.commit.sha,
+                        "author": corr.commit.author_name,
+                        "url": corr.commit.url,
+                        "minutes_before": corr.minutes_before_incident,
+                        "correlation_reason": corr.correlation_reason,
+                    },
+                )
+            )
+
+    except Exception as e:
+        logger.warning(f"Failed to get correlated commits: {e}")
+
+    return evidence_list

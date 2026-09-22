@@ -11,6 +11,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.incident import Incident
+    from app.models.repository import Repository
 
 
 class UserRole(str, Enum):
@@ -41,6 +42,11 @@ class User(Base):
     # Relationships
     incidents: Mapped[list["Incident"]] = relationship(
         "Incident",
+        back_populates="owner",
+        lazy="selectin",
+    )
+    repositories: Mapped[list["Repository"]] = relationship(
+        "Repository",
         back_populates="owner",
         lazy="selectin",
     )
