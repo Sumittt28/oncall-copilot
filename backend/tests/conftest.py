@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator, Generator
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.database import Base, get_db
@@ -46,6 +47,9 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     )
 
     async with engine.begin() as conn:
+        # Enable pgvector extension for Postgres
+        if USING_POSTGRES:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
 
     async_session = async_sessionmaker(
