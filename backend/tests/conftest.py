@@ -11,7 +11,20 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.core.database import Base, get_db
 from app.core.security import create_access_token, hash_password
 from app.main import app
-from app.models.user import User
+
+# Import all models to ensure they're registered with Base.metadata
+# This must happen before create_all is called
+from app.models import (  # noqa: F401
+    AIInvestigation,
+    Document,
+    DocumentChunk,
+    Incident,
+    IncidentEvent,
+    IncidentEvidence,
+    Postmortem,
+    Repository,
+    User,
+)
 
 # Use DATABASE_URL from environment if available (for CI with Postgres + pgvector)
 # Fall back to SQLite for local development (but pgvector features won't work)
