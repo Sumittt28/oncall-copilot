@@ -62,14 +62,7 @@ async def generate_incident_postmortem(
 
     If a postmortem already exists, it will be regenerated.
     """
-    # Check if Ollama is available
-    if not await check_ollama_health():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Ollama is not available. Please ensure it is running.",
-        )
-
-    # Verify incident exists and is resolved
+    # Verify incident exists first
     result = await db.execute(select(Incident).where(Incident.id == incident_id))
     incident = result.scalar_one_or_none()
 
@@ -79,10 +72,18 @@ async def generate_incident_postmortem(
             detail="Incident not found",
         )
 
+    # Verify incident is resolved
     if incident.resolved_at is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Cannot generate postmortem for unresolved incident",
+        )
+
+    # Check if Ollama is available (only after validating incident)
+    if not await check_ollama_health():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Ollama is not available. Please ensure it is running.",
         )
 
     # Generate postmortem
