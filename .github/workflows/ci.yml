@@ -68,12 +68,20 @@ jobs:
         working-directory: ./backend
         run: mypy app/ --ignore-missing-imports
 
+      - name: Verify database connection
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d oncall_copilot_test -c "SELECT version();"
+          psql -h localhost -U postgres -d oncall_copilot_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          psql -h localhost -U postgres -d oncall_copilot_test -c "SELECT * FROM pg_extension WHERE extname = 'vector';"
+
       - name: Run tests
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/oncall_copilot_test
           JWT_SECRET_KEY: test-secret-key-for-ci
-        run: python -m pytest tests/ -v --tb=short
+        run: python -m pytest tests/ -v --tb=short 2>&1 | tee test_output.txt; exit ${PIPESTATUS[0]}
 
   frontend-test:
     name: Frontend Tests
