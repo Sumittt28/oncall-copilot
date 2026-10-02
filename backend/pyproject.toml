@@ -13,6 +13,7 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 filterwarnings = [
     "ignore::DeprecationWarning",
+    "ignore:Using insecure default JWT_SECRET_KEY:UserWarning",
 ]
 
 [tool.ruff]
