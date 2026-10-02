@@ -38,7 +38,7 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Create a fresh database session for each test."""
     # SQLite needs check_same_thread=False, Postgres doesn't use this option
     connect_args = {} if USING_POSTGRES else {"check_same_thread": False}
-    
+
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
