@@ -1,6 +1,7 @@
 """Test fixtures and configuration."""
 
 import asyncio
+import os
 from collections.abc import AsyncGenerator, Generator
 
 import pytest
@@ -13,8 +14,15 @@ from app.core.security import create_access_token, hash_password
 from app.main import app
 from app.models.user import User
 
-# Test database URL (in-memory SQLite for speed, or use a test Postgres)
-TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
+# Use DATABASE_URL from environment if available (for CI with Postgres + pgvector)
+# Fall back to SQLite for local development (but pgvector features won't work)
+TEST_DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "sqlite+aiosqlite:///:memory:"
+)
+
+# Check if using Postgres (for pgvector support)
+USING_POSTGRES = TEST_DATABASE_URL.startswith("postgresql")
 
 
 @pytest.fixture(scope="session")
@@ -28,10 +36,13 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 @pytest_asyncio.fixture(scope="function")
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     """Create a fresh database session for each test."""
+    # SQLite needs check_same_thread=False, Postgres doesn't use this option
+    connect_args = {} if USING_POSTGRES else {"check_same_thread": False}
+    
     engine = create_async_engine(
         TEST_DATABASE_URL,
         echo=False,
-        connect_args={"check_same_thread": False},
+        **({"connect_args": connect_args} if connect_args else {}),
     )
 
     async with engine.begin() as conn:
