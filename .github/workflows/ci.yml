@@ -34,11 +34,31 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: ${{ runner.os }}-hf-all-MiniLM-L6-v2-v1
+          restore-keys: |
+            ${{ runner.os }}-hf-
+
       - name: Install dependencies
         working-directory: ./backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+
+      - name: Pre-download embedding model
+        run: |
+          python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')"
 
       - name: Run linting
         working-directory: ./backend
@@ -55,8 +75,8 @@ jobs:
           JWT_SECRET_KEY: test-secret-key-for-ci
         run: python -m pytest tests/ -v --tb=short
 
-  frontend-build:
-    name: Frontend Build
+  frontend-test:
+    name: Frontend Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -76,6 +96,10 @@ jobs:
       - name: Run linting
         working-directory: ./frontend
         run: npm run lint
+
+      - name: Run tests
+        working-directory: ./frontend
+        run: npm run test:ci
 
       - name: Build
         working-directory: ./frontend

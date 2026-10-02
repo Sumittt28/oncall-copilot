@@ -25,6 +25,7 @@ from app.schemas.document import (
     DocumentWithChunksResponse,
 )
 from app.services.chunking import chunk_text
+from app.services.embeddings import generate_embeddings_batch
 from app.workers.embedding_worker import embed_document_chunks
 
 router = APIRouter()
@@ -164,6 +165,7 @@ async def upload_document(
         chunks = chunk_text(content)
 
         # Create chunk records
+        chunk_records = []
         for chunk in chunks:
             db_chunk = DocumentChunk(
                 document_id=document.id,
@@ -172,13 +174,41 @@ async def upload_document(
                 token_count=chunk.token_count,
             )
             db.add(db_chunk)
+            chunk_records.append(db_chunk)
 
         await db.flush()
+
+        # Generate embeddings inline for immediate search availability
+        try:
+            from datetime import UTC, datetime
+
+            texts = [chunk.content for chunk in chunk_records]
+            embeddings = generate_embeddings_batch(texts)
+            now = datetime.now(UTC)
+
+            for db_chunk, embedding in zip(chunk_records, embeddings, strict=False):
+                db_chunk.embedding = embedding
+                db_chunk.embedded_at = now
+
+            await db.flush()
+            embedded_count = len(chunk_records)
+        except Exception as e:
+            # Log but don't fail - embeddings can be generated later
+            import logging
+            logging.getLogger(__name__).warning(
+                f"Inline embedding failed, will retry via worker: {e}"
+            )
+            embedded_count = 0
+
         await db.refresh(document)
+
+        message = f"Document uploaded successfully with {len(chunks)} chunks"
+        if embedded_count > 0:
+            message += f" ({embedded_count} embedded)"
 
         return DocumentUploadResponse(
             document=DocumentResponse.from_orm_with_chunks(document),
-            message=f"Document uploaded successfully with {len(chunks)} chunks",
+            message=message,
         )
 
     except Exception as e:

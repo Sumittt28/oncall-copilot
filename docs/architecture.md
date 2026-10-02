@@ -29,8 +29,11 @@
         ▼              ▼              ▼              ▼
 ┌──────────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────────┐
 │  PostgreSQL  │ │  Redis   │ │    Ollama    │ │   GitHub     │
-│  + pgvector  │ │  Queue   │ │  Local LLM   │ │     API      │
+│  + pgvector  │ │ (cache)  │ │  Local LLM   │ │     API      │
 └──────────────┘ └──────────┘ └──────────────┘ └──────────────┘
+
+> **Note:** Redis is provisioned for future caching and rate-limiting features.
+> Currently, the system operates fully with just PostgreSQL and Ollama.
 ```
 
 ## Data Models

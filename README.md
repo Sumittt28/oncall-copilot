@@ -152,6 +152,27 @@ cd frontend
 npm test
 ```
 
+## 🔧 CLI Commands
+
+The backend includes a CLI for administrative tasks:
+
+```bash
+cd backend
+source venv/bin/activate
+
+# Process any pending document embeddings (runs once)
+python -m app.cli process-embeddings
+
+# Run the background embedding worker (continuous)
+python -m app.cli embedding-worker
+
+# View all commands
+python -m app.cli --help
+```
+
+> **Note:** Document embeddings are generated automatically on upload. The CLI 
+> commands are useful for processing any failed embeddings or for batch operations.
+
 ## 📁 Project Structure
 
 ```
@@ -187,9 +208,11 @@ oncall-copilot/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `ENVIRONMENT` | Environment mode (`development`, `testing`, `production`) | `development` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql+asyncpg://...` |
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379/0` |
-| `JWT_SECRET_KEY` | Secret for JWT tokens | (required) |
+| `JWT_SECRET_KEY` | Secret for JWT tokens (required in production, min 32 chars) | insecure default |
+| `ENCRYPTION_KEY` | Separate key for encrypting sensitive data | derives from JWT secret |
 | `OLLAMA_BASE_URL` | Ollama API URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | LLM model to use | `llama3.2:latest` |
 

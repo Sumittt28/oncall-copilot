@@ -9,14 +9,15 @@ from app.core.config import get_settings
 
 
 def _get_encryption_key() -> bytes:
-    """Derive a Fernet key from the JWT secret.
+    """Derive a Fernet key from the encryption key setting.
 
-    Uses the JWT secret as the base for the encryption key.
-    In production, use a separate ENCRYPTION_KEY environment variable.
+    Uses the dedicated ENCRYPTION_KEY if set, otherwise falls back to
+    deriving from JWT_SECRET_KEY. In production, always set ENCRYPTION_KEY
+    to a separate secure value.
     """
     settings = get_settings()
     # Use SHA256 to get 32 bytes, then base64 encode for Fernet
-    key = hashlib.sha256(settings.jwt_secret_key.encode()).digest()
+    key = hashlib.sha256(settings.effective_encryption_key.encode()).digest()
     return base64.urlsafe_b64encode(key)
 
 
