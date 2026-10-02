@@ -68,13 +68,38 @@ jobs:
         working-directory: ./backend
         run: mypy app/ --ignore-missing-imports
 
-      - name: Verify database connection
+      - name: Verify database and pgvector
+        working-directory: ./backend
         env:
-          PGPASSWORD: postgres
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/oncall_copilot_test
         run: |
-          psql -h localhost -U postgres -d oncall_copilot_test -c "SELECT version();"
-          psql -h localhost -U postgres -d oncall_copilot_test -c "CREATE EXTENSION IF NOT EXISTS vector;"
-          psql -h localhost -U postgres -d oncall_copilot_test -c "SELECT * FROM pg_extension WHERE extname = 'vector';"
+          python -c "
+          import asyncio
+          from sqlalchemy import text
+          from sqlalchemy.ext.asyncio import create_async_engine
+          
+          async def check():
+              engine = create_async_engine('$DATABASE_URL')
+              async with engine.begin() as conn:
+                  # Check connection
+                  result = await conn.execute(text('SELECT version()'))
+                  print(f'PostgreSQL: {result.scalar()}')
+                  
+                  # Create pgvector extension
+                  await conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
+                  print('pgvector extension created/verified')
+                  
+                  # Verify extension
+                  result = await conn.execute(text(\"SELECT extname, extversion FROM pg_extension WHERE extname = 'vector'\"))
+                  row = result.fetchone()
+                  if row:
+                      print(f'pgvector version: {row[1]}')
+                  else:
+                      print('WARNING: pgvector extension not found!')
+              await engine.dispose()
+          
+          asyncio.run(check())
+          "
 
       - name: Run tests
         working-directory: ./backend
