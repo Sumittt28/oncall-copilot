@@ -72,41 +72,14 @@ jobs:
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/oncall_copilot_test
-        run: |
-          python -c "
-          import asyncio
-          from sqlalchemy import text
-          from sqlalchemy.ext.asyncio import create_async_engine
-          
-          async def check():
-              engine = create_async_engine('$DATABASE_URL')
-              async with engine.begin() as conn:
-                  # Check connection
-                  result = await conn.execute(text('SELECT version()'))
-                  print(f'PostgreSQL: {result.scalar()}')
-                  
-                  # Create pgvector extension
-                  await conn.execute(text('CREATE EXTENSION IF NOT EXISTS vector'))
-                  print('pgvector extension created/verified')
-                  
-                  # Verify extension
-                  result = await conn.execute(text(\"SELECT extname, extversion FROM pg_extension WHERE extname = 'vector'\"))
-                  row = result.fetchone()
-                  if row:
-                      print(f'pgvector version: {row[1]}')
-                  else:
-                      print('WARNING: pgvector extension not found!')
-              await engine.dispose()
-          
-          asyncio.run(check())
-          "
+        run: python scripts/verify_db.py
 
       - name: Run tests
         working-directory: ./backend
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/oncall_copilot_test
           JWT_SECRET_KEY: test-secret-key-for-ci
-        run: python -m pytest tests/ -v --tb=short 2>&1 | tee test_output.txt; exit ${PIPESTATUS[0]}
+        run: python -m pytest tests/ -v --tb=short
 
   frontend-test:
     name: Frontend Tests
